@@ -195,10 +195,8 @@ and how many tokens each (query, text) pair has, not on what the words say.
 That is why a profile of token lengths is enough to rebuild a workload
 without sharing its text.
 
-Without a Hindsight install of your own, start from a shared profile in
-`bench/profiles/` and go straight to `synth.py`. To measure your own
-workload, record real requests (they contain your memory text and stay
-local; `bench/requests/` is git-ignored):
+Record real requests (they contain your memory text and stay local;
+`bench/requests/` is git-ignored):
 
 ```sh
 python3 bench/record.py --out bench/requests/mine
@@ -215,7 +213,14 @@ uv run --locked --script bench/synth.py bench/profiles/mine.json -o bench/reques
 ```
 
 `synth.py` matches every pair's token count to within one token and prints
-the largest deviation.
+the largest deviation. Synthetic requests run somewhat faster than the real
+ones they copy: sentence-transformers sorts pairs by character count before
+batching, real text has an uneven characters-per-token ratio and so batches
+with more padding, and the synthetic words have an even ratio. On one
+measured workload (100 real recall queries, caps 100 and 200 on an M4 Mac
+mini) synthetic p50 was 10–14% lower and p95 5–7% lower. Treat synthetic
+timings as a lower bound, and measure real requests when the number
+matters.
 
 Replay against the running server:
 
