@@ -8,8 +8,9 @@ GPU (PyTorch MPS) behind the API of
 [`hindsight-ai/hs-rerank-1`](https://huggingface.co/hindsight-ai/hs-rerank-1),
 in FP16.
 
-It is one Python file (`server.py`), a lockfile, a launchd agent template and
-three shell scripts to install, inspect and remove it.
+It is one Python file (`server.py`) with its lockfile, a launchd agent
+template, three shell scripts to install, inspect and remove it, a small
+benchmark kit (`bench/`) and tests.
 
 ## Why
 
@@ -155,6 +156,72 @@ MiniLM-L6 is a light CPU model, so the fallback is fast but ranks worse.
 How many candidates Hindsight sends per recall is
 `HINDSIGHT_API_RERANKER_MAX_CANDIDATES` (default 300). Rerank time grows
 about linearly with it.
+
+## Benchmark
+
+`bench/` measures rerank latency and memory on your Mac, with your own
+requests or with synthetic ones of the same shape.
+
+| Script | What it does | Needs |
+|---|---|---|
+| `bench/record.py` | Proxy that saves every `/rerank` body Hindsight sends | Python 3 |
+| `bench/profile.py` | Reduces saved requests to token lengths (no text) | uv |
+| `bench/synth.py` | Builds fake requests that match a profile's token lengths | uv |
+| `bench/replay.py` | Replays requests at a cap, concurrency or rate; records time, memory and thermal pressure | Python 3, macOS |
+
+Cross-encoder time and memory depend on how many candidates a request has
+and how many tokens each (query, text) pair has, not on what the words say.
+That is why a profile of token lengths is enough to rebuild a workload
+without sharing its text.
+
+Record real requests (they contain your memory text and stay local;
+`bench/requests/` is git-ignored):
+
+```sh
+python3 bench/record.py --out bench/requests/mine
+# point Hindsight at the recorder for a while:
+#   HINDSIGHT_API_RERANKER_TEI_URL=http://127.0.0.1:8082   (or host.docker.internal:8082)
+# set HINDSIGHT_API_RERANKER_MAX_CANDIDATES to the largest cap you want to test
+```
+
+Turn them into a shareable profile, or build synthetic requests from one:
+
+```sh
+uv run --locked --script bench/profile.py bench/requests/mine -o bench/profiles/mine.json
+uv run --locked --script bench/synth.py bench/profiles/mine.json -o bench/requests/synth
+```
+
+`synth.py` matches every pair's token count to within one token and prints
+the largest deviation.
+
+Replay against the running server:
+
+```sh
+python3 bench/replay.py bench/requests/synth --cap 100              # one at a time
+python3 bench/replay.py bench/requests/synth --cap 200 --concurrency 4
+python3 bench/replay.py bench/requests/synth --cap 100 --interval 25   # one request every 25 s
+```
+
+`--cap N` keeps the first N texts of each request, which is what
+`HINDSIGHT_API_RERANKER_MAX_CANDIDATES=N` would have sent, so one recording
+at a high cap serves every lower one. Results go to `bench/results/`:
+per-request times and a summary with mean, p50, p95 and max seconds, the
+server's memory footprint (including MPS allocations) and macOS's thermal
+pressure level. Record the pressure with every run: when it rises, macOS
+lowers the GPU clock and the same requests take longer.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+`tests/test_server.py` starts `server.py` on a free port with the small
+MiniLM-L6 model and checks the API: `/info`, `/health`, ordering, raw-logit
+scores, empty and malformed requests. `tests/test_synth.py` checks that
+`bench/synth.py` reproduces a profile's token lengths. The first run
+downloads PyTorch and the models. There is no CI: hosted macOS runners have
+no usable MPS, so GPU behaviour is checked on a real Mac.
 
 ## Configuration
 
