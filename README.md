@@ -75,7 +75,9 @@ an identity so the scores are not squashed twice.
 uv run --locked --script server.py
 ```
 
-The first run downloads PyTorch and the model, which takes a few minutes.
+The first run downloads Python 3.13, PyTorch and the model, about 2 GB; on a
+fast connection that took under a minute. Warnings about unauthenticated
+Hugging Face requests and a missing `modules.json` are harmless.
 When the log says `serving hindsight-ai/hs-rerank-1@927f5be3 (float16) on mps`,
 try it:
 
@@ -193,8 +195,10 @@ and how many tokens each (query, text) pair has, not on what the words say.
 That is why a profile of token lengths is enough to rebuild a workload
 without sharing its text.
 
-Record real requests (they contain your memory text and stay local;
-`bench/requests/` is git-ignored):
+Without a Hindsight install of your own, start from a shared profile in
+`bench/profiles/` and go straight to `synth.py`. To measure your own
+workload, record real requests (they contain your memory text and stay
+local; `bench/requests/` is git-ignored):
 
 ```sh
 python3 bench/record.py --out bench/requests/mine
