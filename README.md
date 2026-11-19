@@ -12,21 +12,40 @@ It is one Python file (`server.py`) with its lockfile, a launchd agent
 template, three shell scripts to install, inspect and remove it, a small
 benchmark kit (`bench/`) and tests.
 
-## Why
+## Why it runs on macOS, not in Docker
 
-On a Mac, Hindsight's built-in `local` reranker runs on the CPU:
+On a Mac, Hindsight's built-in `local` reranker runs on the CPU, whether
+Hindsight runs in Docker or natively.
 
-- In Docker (OrbStack, Docker Desktop), the Linux VM has no access to Metal.
-- In a native install, Hindsight 1.2.x never selects MPS for the local
-  reranker. It was disabled after a Metal crash under concurrent reranking
-  ([vectorize-io/hindsight#4412](https://github.com/vectorize-io/hindsight/issues/4412))
-  and because MPS keeps a per-shape memory cache that grows with
-  variable-length inputs.
+**In Docker.** Docker on macOS (Docker Desktop, OrbStack, Colima) runs
+containers inside a Linux virtual machine. The Apple GPU is reachable only
+through Metal, a macOS framework, and the VM does not pass the GPU through
+to Linux, so PyTorch inside a container sees neither CUDA nor MPS and falls
+back to the CPU. (Some VMs expose the GPU to Linux through Vulkan, such as
+Podman with krunkit, which llama.cpp can use; PyTorch has no backend for it.)
+The VM also takes a fixed slice of the Mac's memory, and a model loaded in a
+container has to fit in that slice.
 
-hs-rerank-1 reads up to 8,192 tokens per pair, so on the CPU it is slow. This
-server keeps the model on the GPU in a separate process with one forward pass
-at a time, and Hindsight reaches it over HTTP. Hindsight's other Apple-GPU
-route is its in-process `jina-mlx` provider, which uses a different model.
+**Natively.** Hindsight 1.2.x never selects MPS for its local reranker. It
+was disabled after a Metal crash under concurrent reranking
+([vectorize-io/hindsight#4412](https://github.com/vectorize-io/hindsight/issues/4412))
+and because MPS keeps a per-shape memory cache that grows with
+variable-length inputs.
+
+So the model runs here, as a macOS process next to Hindsight:
+
+- PyTorch runs natively, reaches the GPU through Metal (MPS) and uses the
+  Mac's unified memory directly.
+- Hindsight, in a container or not, calls it over HTTP with its `tei`
+  provider. From a container the address is `host.docker.internal`.
+- The two concerns behind the upstream decision are contained in this
+  process: one forward pass at a time (no concurrent Metal work), and a
+  periodic cache flush. When MPS memory grows anyway, you restart this
+  process, not Hindsight.
+
+hs-rerank-1 reads up to 8,192 tokens per pair, so the CPU-to-GPU difference
+is large. Hindsight's other Apple-GPU route is its in-process `jina-mlx`
+provider, which uses a different model.
 
 ## API
 
