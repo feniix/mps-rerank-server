@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd agent for server.py. A template: scripts/install.sh fills in
+  __UV__, __DIR__, __HOME__, __HOST__ and __PORT__, writes the result to
+  ~/Library/LaunchAgents/io.github.feniix.mps-rerank-server.plist and loads it.
+  launchd starts agents with a minimal PATH, so uv is referenced by absolute path.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.feniix.mps-rerank-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__UV__</string>
+    <string>run</string>
+    <string>--locked</string>
+    <string>--script</string>
+    <string>__DIR__/server.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>RERANKER_HOST</key>
+    <string>__HOST__</string>
+    <key>RERANKER_PORT</key>
+    <string>__PORT__</string>
+  </dict>
+  <!-- Start at login and restart on crash: while the server is down, Hindsight's
+       tei provider retries (~3.5 s) and then falls back, if a fallback is set. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <!-- Interactive: macOS does not throttle it like a background job, so recall
+       latency does not depend on whether someone is using the Mac. -->
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/mps-rerank-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/mps-rerank-server.log</string>
+</dict>
+</plist>
