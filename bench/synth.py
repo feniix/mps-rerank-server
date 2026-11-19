@@ -19,7 +19,9 @@ import json
 import os
 import random
 
-from transformers import AutoTokenizer
+# Only the tokenizer is needed; keep transformers from warning that PyTorch is absent.
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+from transformers import AutoTokenizer  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("profile")

@@ -19,7 +19,9 @@ import glob
 import json
 import os
 
-from transformers import AutoTokenizer
+# Only the tokenizer is needed; keep transformers from warning that PyTorch is absent.
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+from transformers import AutoTokenizer  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("requests", help="directory of request JSON files ({query, texts})")
@@ -29,6 +31,7 @@ ap.add_argument("--revision", default="927f5be31280298a51cf29af8a29cb111ed812c5"
 ap.add_argument("--note", default="", help="free-text description stored in the profile")
 args = ap.parse_args()
 
+os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 tok = AutoTokenizer.from_pretrained(args.model, revision=args.revision)
 reqs = []
 for path in sorted(glob.glob(os.path.join(args.requests, "*.json"))):
